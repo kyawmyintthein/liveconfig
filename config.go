@@ -76,10 +76,11 @@ func NewConfig(configStructPtr interface{}, serviceRootPath string, opts ...opti
 		return liveConfig,err
 	}
 
-	err = liveConfig.generateConfigETCDKeysFromConfig(configStructPtr)
+	err = liveConfig.generateConfigETCDKeysFromConfig("", "", configStructPtr)
 	if err != nil {
 		return liveConfig, err
 	}
+	fmt.Println(liveConfig.configJsonEtcdKeyMap)
 
 	err = liveConfig.overrideConfigValuesFromETCD(configStructPtr)
 	if err != nil {
@@ -117,7 +118,7 @@ func (config *liveConfig) initEtcdConn() error {
 
 //generateConfigETCDKeysFromConfig read config struct and generate etcd keys
 // configStructPtr should be pointer of struct type
-func (config *liveConfig) generateConfigETCDKeysFromConfig(configStructPtr interface{}) error {
+func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, parentFieldEtcdTag string, configStructPtr interface{}) error {
 	valueOfIStructPointer := reflect.ValueOf(configStructPtr)
 
 	if k := valueOfIStructPointer.Kind(); k != reflect.Ptr {
@@ -137,18 +138,40 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(configStructPtr inter
 
 	for index := 0; index < valueOfIStructPointerElem.NumField(); index += 1 {
 		structField := valueOfIStructPointerElem.Type().Field(index)
+
+		if structField.Anonymous {
+			return fmt.Errorf("unsupported anonymous field %s", structField.Name)
+		}
+
 		structFieldJsonTag, structFieldEtcdTag := getStructTags(structField)
 		if structFieldJsonTag == "" || structFieldEtcdTag == "" {
 			continue
 		}
 
-		jsonKeyType := ConfigJsonKeyWithDataType{
-			Key:  structFieldJsonTag,
-			Type: structField.Type,
+		// nested struct
+		if structField.Type.Kind() == reflect.Struct{
+			valueField := valueOfIStructPointerElem.Field(index)
+			config.generateConfigETCDKeysFromConfig(structFieldJsonTag, structFieldEtcdTag, valueField.Addr().Interface())
+		}else{
+			jsonTag := structFieldJsonTag
+			if parentFieldJsonTag != ""{
+				jsonTag = fmt.Sprintf("%s.%s", parentFieldJsonTag, structFieldJsonTag)
+			}
+
+			jsonKeyType := ConfigJsonKeyWithDataType{
+				Key:  jsonTag,
+				Type: structField.Type,
+			}
+
+			etcdTag := structFieldJsonTag
+			if parentFieldEtcdTag != ""{
+				etcdTag = fmt.Sprintf("%s/%s", parentFieldEtcdTag, structFieldJsonTag)
+			}
+
+			etcdKey := fmt.Sprintf("%s/%s", config.serviceRootPath, etcdTag)
+			config.configJsonEtcdKeyMap[etcdKey] = jsonKeyType
 		}
 
-		etcdKey := fmt.Sprintf("%s/%s", config.serviceRootPath, structFieldEtcdTag)
-		config.configJsonEtcdKeyMap[etcdKey] = jsonKeyType
 	}
 	return nil
 }

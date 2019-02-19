@@ -7,17 +7,18 @@ import (
 )
 
 type LogConfig struct{
-	LogLevel string `etcd:"level" json:"level"`
-	LogFilepath string  `etcd:"filepath" json:"filepath"`
+	LogLevel string     `etcd:"log_level" json:"log_level"`
+	LogFilepath string  `etcd:"log_level" json:"log_filepath"`
 }
+
 type GeneralConfig struct{
 	Log LogConfig `etcd:"log" json:"log"`
 }
 
 func main(){
 	generalConfig := GeneralConfig{
-		LogConfig{
-			"debug",
+			LogConfig{
+				"debug",
 			"test/test.log",
 		},
 	}
@@ -29,17 +30,19 @@ func main(){
 		liveconfig.WithRequesttimeout(20),
 		liveconfig.WithDialtimeout(30))
 	if err != nil{
-		fmt.Errorf("Error : %v", err)
+		fmt.Printf("Error : %v \n", err)
 		return
 	}
 	fmt.Printf("Config %+v \n", generalConfig)
 
-	go lConfig.Watch(&generalConfig)
+	lConfig.Watch(&generalConfig)
 
-	lConfig.AddReloadCallback("/test-project/config/log", func(ctx context.Context) error {
+	lConfig.AddReloadCallback("/test-project/config/log_level", func(ctx context.Context) error {
 		fmt.Println(generalConfig.Log.LogLevel)
 		return nil
 	})
+
+	select{}
 }
 
 
