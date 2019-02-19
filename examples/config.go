@@ -36,7 +36,7 @@ func main(){
 
 	go lConfig.Watch(&generalConfig)
 
-	lConfig.AddReloadCallback("/user-config/config/log/level", func(ctx context.Context) error {
+	lConfig.AddReloadCallback("/test-project/config/log", func(ctx context.Context) error {
 		fmt.Println(generalConfig.Log.LogLevel)
 		return nil
 	})
