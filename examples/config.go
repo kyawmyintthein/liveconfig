@@ -18,16 +18,14 @@ func main(){
 	generalConfig := GeneralConfig{
 		LogConfig{
 			"debug",
-			"test/user_service.log",
+			"test/test.log",
 		},
 	}
 
 	lConfig, err := liveconfig.NewConfig(
 		&generalConfig,
-		"/user-service/config",
-		liveconfig.WithHosts("10.30.1.65:2379","10.30.1.66:2379","10.30.1.67:2379"),
-		liveconfig.WithUsername("userservice"),
-		liveconfig.WithPassword("circles@123"),
+		"/test-project/config",
+		liveconfig.WithHosts("localhost:2379"),
 		liveconfig.WithRequesttimeout(20),
 		liveconfig.WithDialtimeout(30))
 	if err != nil{
