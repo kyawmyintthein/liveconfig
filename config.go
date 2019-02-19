@@ -151,7 +151,15 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 		// nested struct
 		if structField.Type.Kind() == reflect.Struct{
 			valueField := valueOfIStructPointerElem.Field(index)
-			config.generateConfigETCDKeysFromConfig(structFieldJsonTag, structFieldEtcdTag, valueField.Addr().Interface())
+			jsonTag := structFieldJsonTag
+			if parentFieldJsonTag != ""{
+				jsonTag = fmt.Sprintf("%s.%s", parentFieldEtcdTag, structFieldJsonTag)
+			}
+			etcdTag := structFieldJsonTag
+			if parentFieldEtcdTag != ""{
+				etcdTag = fmt.Sprintf("%s/%s", parentFieldEtcdTag, structFieldEtcdTag)
+			}
+			config.generateConfigETCDKeysFromConfig(jsonTag, etcdTag, valueField.Addr().Interface())
 		}else{
 			jsonTag := structFieldJsonTag
 			if parentFieldJsonTag != ""{

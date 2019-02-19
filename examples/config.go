@@ -6,7 +6,12 @@ import (
 	"github.com/kyawmyintthein/liveconfig"
 )
 
+type LogInfo struct{
+	LogRotation bool `etcd:"log_rotation" json:"log_rotation"`
+}
+
 type LogConfig struct{
+	Info LogInfo `etcd:"info" json:"info"`
 	LogLevel string     `etcd:"log_level" json:"log_level"`
 	LogFilepath string  `etcd:"log_level" json:"log_filepath"`
 }
@@ -18,6 +23,7 @@ type GeneralConfig struct{
 func main(){
 	generalConfig := GeneralConfig{
 			LogConfig{
+				LogInfo{true},
 				"debug",
 			"test/test.log",
 		},
