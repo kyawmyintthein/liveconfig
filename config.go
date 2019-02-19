@@ -25,7 +25,7 @@ type LiveConfig interface {
 
 // ReloadCallbackFunc is callback function type. It will get called
 // when the value of related etcd key is change.
-type ReloadCallbackFunc func(ctx context.Context) error
+type ReloadCallbackFunc func(ctx context.Context)
 
 // ConfigJsonKeyWithDataType mapping between config struct json key and data type (reflect.Type)
 // example:
@@ -57,16 +57,16 @@ type liveConfig struct {
 	etcdKeyCallbackFuncMap map[string]ReloadCallbackFunc
 
 	// root path for etcd directory
-	serviceRootPath string
+	prefix string
 }
 
 // NewConfig: create new liveConfig object
 // init etcd connection according to options
 // generate etcd keys from config struct and keep in as map
-func NewConfig(configStructPtr interface{}, serviceRootPath string, opts ...option.Option) (LiveConfig, error) {
+func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option) (LiveConfig, error) {
 	options := option.NewOptions(opts...)
 	liveConfig := &liveConfig{
-		serviceRootPath:        serviceRootPath,
+		prefix:        prefix,
 		options:                options,
 		configJsonEtcdKeyMap:   make(map[string]ConfigJsonKeyWithDataType),
 		etcdKeyCallbackFuncMap: make(map[string]ReloadCallbackFunc),
@@ -176,7 +176,7 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 				etcdTag = fmt.Sprintf("%s/%s", parentFieldEtcdTag, structFieldJsonTag)
 			}
 
-			etcdKey := fmt.Sprintf("%s/%s", config.serviceRootPath, etcdTag)
+			etcdKey := fmt.Sprintf("%s/%s", config.prefix, etcdTag)
 			config.configJsonEtcdKeyMap[etcdKey] = jsonKeyType
 		}
 
@@ -240,7 +240,8 @@ func (config *liveConfig) syncEtcdDataToConfigStruct(results map[string]interfac
 // AddReloadCallback: register callback function with etcd key.
 // It will get called when etcd server detect value changes for this key.
 func (config *liveConfig) AddReloadCallback(etcdKey string, fn ReloadCallbackFunc) bool {
-	_, ok := config.configJsonEtcdKeyMap[etcdKey]
+	etcdKeyWithPrefix := fmt.Sprintf("%s/%s", config.prefix, etcdKey)
+	_, ok := config.configJsonEtcdKeyMap[etcdKeyWithPrefix]
 	if ok {
 		config.etcdKeyCallbackFuncMap[etcdKey] = fn
 	}
@@ -252,7 +253,7 @@ func (config *liveConfig) AddReloadCallback(etcdKey string, fn ReloadCallbackFun
 func (config *liveConfig) Watch(configStructPtr interface{}) {
 	ctx := context.Background()
 	go func() {
-		watchChan := config.etcdCli.Watch(ctx, config.serviceRootPath, clientv3.WithPrefix())
+		watchChan := config.etcdCli.Watch(ctx, config.prefix, clientv3.WithPrefix())
 		for true {
 			select {
 			case result := <-watchChan:
@@ -384,16 +385,11 @@ func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, etcdK
 
 // runReloadCallbackFuncs When etcd client detect the value changes on this etcd key, it will call related
 // callback function to reload some module or object.
-func (config *liveConfig) runReloadCallbackFuncs(ctx context.Context, etcdKey string) error {
+func (config *liveConfig) runReloadCallbackFuncs(ctx context.Context, etcdKey string) {
 	callbackFn, ok := config.etcdKeyCallbackFuncMap[etcdKey]
-	if !ok {
-		return nil
+	if ok {
+		callbackFn(ctx)
 	}
-	err := callbackFn(ctx)
-	if err != nil {
-		return nil
-	}
-	return nil
 }
 
 

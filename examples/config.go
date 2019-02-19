@@ -43,11 +43,11 @@ func main(){
 
 	lConfig.Watch(&generalConfig)
 
-	lConfig.AddReloadCallback("/test-project/config/log_level", func(ctx context.Context) error {
+	ok := lConfig.AddReloadCallback("log/log_level", func(ctx context.Context){
 		fmt.Println(generalConfig.Log.LogLevel)
-		return nil
 	})
 
+	fmt.Println(ok)
 
 	select{}
 }
