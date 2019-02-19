@@ -39,13 +39,19 @@ func main(){
 		fmt.Printf("Error : %v \n", err)
 		return
 	}
-	fmt.Printf("Config %+v \n", generalConfig)
-
-	lConfig.Watch(&generalConfig)
 
 	ok := lConfig.AddReloadCallback("log/log_level", func(ctx context.Context){
-		fmt.Println(generalConfig.Log.LogLevel)
+		fmt.Println("Test",generalConfig.Log.LogLevel)
 	})
+
+	err = lConfig.OverrideConfigValues(&generalConfig)
+	if err != nil{
+		fmt.Printf("OverrideConfigValues Error : %v \n", err)
+		return
+	}
+
+	fmt.Printf("Config %+v \n", generalConfig)
+	lConfig.Watch(&generalConfig)
 
 	fmt.Println(ok)
 

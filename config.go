@@ -19,6 +19,7 @@ import (
 // It can also watch the changes of etcd keys by prefix and save into config struct.
 type LiveConfig interface {
 	Watch(configStructPtr interface{})
+	OverrideConfigValues(configStructPtr interface{}) error
 	// AddReloadCallback register reinitilization function for specific etcd key
 	AddReloadCallback(etcdKey string, fn ReloadCallbackFunc) bool
 }
@@ -78,11 +79,6 @@ func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option
 	}
 
 	err = liveConfig.generateConfigETCDKeysFromConfig("", "", configStructPtr)
-	if err != nil {
-		return liveConfig, err
-	}
-
-	err = liveConfig.overrideConfigValuesFromETCD(configStructPtr)
 	if err != nil {
 		return liveConfig, err
 	}
@@ -184,9 +180,9 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 	return nil
 }
 
-// OverrideConfigValuesFromETCD read etcd valeus and sync into config struct
+// OverrideConfigValues read etcd valeus and sync into config struct
 // call the reload callback function
-func (config *liveConfig) overrideConfigValuesFromETCD(configStructPtr interface{}) error {
+func (config *liveConfig) OverrideConfigValues(configStructPtr interface{}) error {
 	kv := config.etcdCli.KV
 
 	etcdRequestTimeout, _ := config.options.Context.Value(requestTimeoutKey{}).(time.Duration)
@@ -243,7 +239,7 @@ func (config *liveConfig) AddReloadCallback(etcdKey string, fn ReloadCallbackFun
 	etcdKeyWithPrefix := fmt.Sprintf("%s/%s", config.prefix, etcdKey)
 	_, ok := config.configJsonEtcdKeyMap[etcdKeyWithPrefix]
 	if ok {
-		config.etcdKeyCallbackFuncMap[etcdKey] = fn
+		config.etcdKeyCallbackFuncMap[etcdKeyWithPrefix] = fn
 	}
 	return ok
 }
