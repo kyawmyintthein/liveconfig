@@ -9,6 +9,7 @@ import (
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 	"github.com/coreos/etcd/clientv3"
 )
@@ -80,7 +81,6 @@ func NewConfig(configStructPtr interface{}, serviceRootPath string, opts ...opti
 	if err != nil {
 		return liveConfig, err
 	}
-	fmt.Println(liveConfig.configJsonEtcdKeyMap)
 
 	err = liveConfig.overrideConfigValuesFromETCD(configStructPtr)
 	if err != nil {
@@ -201,7 +201,7 @@ func (config *liveConfig) overrideConfigValuesFromETCD(configStructPtr interface
 		}
 
 		if len(res.Kvs) > 0 {
-			err = convertETCDValueToOriginalType(&jsonKeyType, etcdKey, res.Kvs[0], results)
+			err = convertETCDValueToOriginalType(jsonKeyType, etcdKey, res.Kvs[0], results)
 			if err != nil {
 				return err
 			}
@@ -260,7 +260,7 @@ func (config *liveConfig) Watch(configStructPtr interface{}) {
 					var results = make(map[string]interface{})
 					configJsonKeyWithDataType, ok := config.configJsonEtcdKeyMap[string(ev.Kv.Key)]
 					if ok {
-						convertETCDValueToOriginalType(&configJsonKeyWithDataType, string(ev.Kv.Key), ev.Kv, results)
+						convertETCDValueToOriginalType(configJsonKeyWithDataType, string(ev.Kv.Key), ev.Kv, results)
 						// save values to config struct
 						config.syncEtcdDataToConfigStruct(results, configStructPtr)
 					}
@@ -274,19 +274,27 @@ func (config *liveConfig) Watch(configStructPtr interface{}) {
 
 //convertETCDValueToOriginalType get the predefiend type of etcd key and convert the etcd value([]byte) to its original type
 // It doesn't support ptr type and custom type struct field.
-func convertETCDValueToOriginalType(jsonKeyType *ConfigJsonKeyWithDataType, etcdKey string, kv *mvccpb.KeyValue, results map[string]interface{}) error {
+func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, etcdKey string, kv *mvccpb.KeyValue, results map[string]interface{}) error {
 	switch jsonKeyType.Type.Kind() {
 	// String
 	case reflect.String:
-		results[jsonKeyType.Key] = string(kv.Value)
-
+		rootKey, res, err := convertToMap(jsonKeyType.Key,  string(kv.Value), ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 	// Float32
 	case reflect.Float32:
 		float32Val, err := strconv.ParseFloat(string(kv.Value), 32)
 		if err != nil {
 			return err
 		}
-		results[jsonKeyType.Key] = float32Val
+
+		rootKey, res, err := convertToMap(jsonKeyType.Key,  float32Val, ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 
 	// Float64
 	case reflect.Float64:
@@ -294,31 +302,55 @@ func convertETCDValueToOriginalType(jsonKeyType *ConfigJsonKeyWithDataType, etcd
 		if err != nil {
 			return err
 		}
-		results[jsonKeyType.Key] = float64Val
 
+		rootKey, res, err := convertToMap(jsonKeyType.Key,  float64Val, ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 	// Bool
 	case reflect.Bool:
 		boolValue, err := strconv.ParseBool(string(kv.Value))
 		if err != nil {
 			return err
 		}
-		results[jsonKeyType.Key] = boolValue
-
+		rootKey, res, err := convertToMap(jsonKeyType.Key,  boolValue, ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 	// Int
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		val, err := strconv.Atoi(string(kv.Value))
 		if err != nil {
 			return err
 		}
-		results[jsonKeyType.Key] = val
+
+		rootKey, res, err := convertToMap(jsonKeyType.Key,  val, ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 
 	// Uint
 	case reflect.Uint16:
-		results[jsonKeyType.Key] = binary.BigEndian.Uint16(kv.Value)
+		rootKey, res, err := convertToMap(jsonKeyType.Key,  binary.BigEndian.Uint16(kv.Value), ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 	case reflect.Uint32:
-		results[jsonKeyType.Key] = binary.BigEndian.Uint32(kv.Value)
+		rootKey, res, err := convertToMap(jsonKeyType.Key,  binary.BigEndian.Uint32(kv.Value), ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 	case reflect.Uint64:
-		results[jsonKeyType.Key] = binary.BigEndian.Uint64(kv.Value)
+		rootKey, res, err := convertToMap(jsonKeyType.Key,  binary.BigEndian.Uint64(kv.Value), ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 
 	// Map
 	case reflect.Map:
@@ -327,7 +359,12 @@ func convertETCDValueToOriginalType(jsonKeyType *ConfigJsonKeyWithDataType, etcd
 		if err != nil {
 			return err
 		}
-		results[jsonKeyType.Key] = mapReflectValue
+
+		rootKey, res, err := convertToMap(jsonKeyType.Key, mapReflectValue, ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 
 	// Slice
 	case reflect.Slice:
@@ -336,7 +373,11 @@ func convertETCDValueToOriginalType(jsonKeyType *ConfigJsonKeyWithDataType, etcd
 		if err != nil {
 			return err
 		}
-		results[jsonKeyType.Key] = sliceReflectValue
+		rootKey, res, err := convertToMap(jsonKeyType.Key, sliceReflectValue, ".")
+		if err != nil{
+			return err
+		}
+		results[rootKey] = res[rootKey]
 	}
 	return nil
 }
@@ -353,4 +394,29 @@ func (config *liveConfig) runReloadCallbackFuncs(ctx context.Context, etcdKey st
 		return nil
 	}
 	return nil
+}
+
+
+func convertToMap(keyString string, value interface{}, delimiter string) (string, map[string]interface{}, error) {
+	rootKey := strings.Split(keyString, ".")[0]
+
+	if len(strings.Split(keyString, delimiter)) > 5 {
+		return rootKey, nil, fmt.Errorf("Too many levels")
+	}
+
+	var currKey string
+	result := make(map[string]interface{})
+	idx := strings.Index(keyString, delimiter)
+	if idx == -1 {
+		result[keyString] = value
+	} else {
+		currKey = keyString[:idx]
+		var err error
+		_, result[currKey], err = convertToMap(keyString[idx+1:], value, delimiter)
+		if err != nil {
+			return rootKey, result, err
+		}
+	}
+
+	return rootKey, result, nil
 }

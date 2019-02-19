@@ -13,7 +13,7 @@ type LogInfo struct{
 type LogConfig struct{
 	Info LogInfo `etcd:"info" json:"info"`
 	LogLevel string     `etcd:"log_level" json:"log_level"`
-	LogFilepath string  `etcd:"log_level" json:"log_filepath"`
+	LogFilepath string  `etcd:"log_filepath" json:"log_filepath"`
 }
 
 type GeneralConfig struct{
@@ -47,6 +47,7 @@ func main(){
 		fmt.Println(generalConfig.Log.LogLevel)
 		return nil
 	})
+
 
 	select{}
 }
