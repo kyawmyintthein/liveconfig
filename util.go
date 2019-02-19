@@ -1,6 +1,7 @@
 package liveconfig
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"unicode/utf8"
@@ -23,4 +24,25 @@ func getStructTags(structField reflect.StructField) (string, string) {
 		etcdTag = tags[1]
 	}
 	return jsonTag, etcdTag
+}
+
+func ConvertToMap(value interface{}, keyString, delimiter string) (map[string]interface{}, error) {
+	if len(strings.Split(keyString, delimiter)) > 5 {
+		return nil, fmt.Errorf("%s", "Too many levels.")
+	}
+
+	var currKey string
+	result := make(map[string]interface{})
+
+	idx := strings.Index(keyString, delimiter)
+	if idx == -1 {
+		// Does not contain delim
+		// Base case
+		result[keyString] = value
+	} else {
+		currKey = keyString[:idx]
+		result[currKey], _ = ConvertToMap(value, keyString[idx+1:], delimiter)
+	}
+
+	return result, nil
 }
