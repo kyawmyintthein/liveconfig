@@ -12,6 +12,8 @@ type usernameKey struct{}
 type passwordKey struct{}
 type dealTimeoutKey struct{}
 type requestTimeoutKey struct{}
+type filepathsKey struct{}
+type configTypeKey struct{}
 
 // WithHosts sets the etcd hosts option
 func WithHosts(hosts ...string) option.Option {
@@ -60,5 +62,27 @@ func WithRequesttimeout(requestTimeout time.Duration) option.Option {
 			o.Context = context.Background()
 		}
 		o.Context = context.WithValue(o.Context, requestTimeoutKey{}, requestTimeout)
+	}
+}
+
+
+// WithFilepaths sets the filepaths for viper option
+func WithFilepaths(filepaths []string) option.Option {
+	return func(o *option.Options) {
+		if o.Context == nil {
+			o.Context = context.Background()
+		}
+		o.Context = context.WithValue(o.Context, filepathsKey{}, filepaths)
+	}
+}
+
+
+// WithConfigType sets the config type option
+func WithConfigType(configType string) option.Option {
+	return func(o *option.Options) {
+		if o.Context == nil {
+			o.Context = context.Background()
+		}
+		o.Context = context.WithValue(o.Context, configTypeKey{}, configType)
 	}
 }

@@ -7,12 +7,16 @@ import (
 	"fmt"
 	"github.com/kyawmyintthein/liveconfig/option"
 	"github.com/coreos/etcd/mvcc/mvccpb"
+	"github.com/spf13/viper"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"github.com/coreos/etcd/clientv3"
 )
+
+const DefaultConfigType = "yaml"
 
 // LiveConfig is read the config struct and generate etcd keys according to specification.
 // Then, retrieve values from etcd server and override into config struct's value.
@@ -73,7 +77,12 @@ func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option
 		etcdKeyCallbackFuncMap: make(map[string]ReloadCallbackFunc),
 	}
 
-	err := liveConfig.initEtcdConn()
+	err := liveConfig.loadViperConfig(configStructPtr)
+	if err != nil {
+		return liveConfig,err
+	}
+
+	err = liveConfig.initEtcdConn()
 	if err != nil {
 		return liveConfig,err
 	}
@@ -84,6 +93,54 @@ func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option
 	}
 
 	return liveConfig, nil
+}
+
+func (config *liveConfig) loadViperConfig(configStructPtr interface{}) error{
+
+	// config filepath
+	filepaths, _ := config.options.Context.Value(filepathsKey{}).([]string)
+	if len(filepaths) == 0{
+		return fmt.Errorf("empty config file")
+	}
+	viper.SetConfigFile(filepaths[0])
+
+	// config option
+	configType, ok := config.options.Context.Value(configTypeKey{}).(string)
+	if !ok {
+		configType = DefaultConfigType
+	}
+	viper.SetConfigType(configType)
+
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		return fmt.Errorf("Fatal error config file: %s \n", err)
+	}
+
+	for _, filepath := range filepaths[1:] {
+		err = func(filepath string) error{
+			f, err := os.Open(filepath)
+			if err != nil{
+				return fmt.Errorf("Fatal error read config file: %s \n", err)
+			}
+			defer f.Close()
+			err = viper.MergeConfig(f)
+			if err != nil {
+				return fmt.Errorf("Fatal error mergeing config file: %s \n", err)
+			}
+			return nil
+		}(filepath)
+		if err != nil{
+			return err
+		}
+	}
+
+	err = viper.Unmarshal(configStructPtr)
+	if err != nil {
+		return fmt.Errorf("Fatal error marshal config file: %s \n", err)
+	}
+
+	return nil
 }
 
 // initEtcdConn start new etcd connection

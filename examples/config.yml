@@ -1,0 +1,5 @@
+log:
+  info:
+    log_rotation: false
+  log_level: debug
+  log_filepath: "log/test.log"
