@@ -197,7 +197,7 @@ func (config *liveConfig) OverrideConfigValues(configStructPtr interface{}) erro
 		}
 
 		if len(res.Kvs) > 0 {
-			err = convertETCDValueToOriginalType(jsonKeyType, etcdKey, res.Kvs[0], results)
+			err = convertETCDValueToOriginalType(jsonKeyType, res.Kvs[0], results)
 			if err != nil {
 				return err
 			}
@@ -254,15 +254,17 @@ func (config *liveConfig) Watch(configStructPtr interface{}) {
 			select {
 			case result := <-watchChan:
 				for _, ev := range result.Events {
-					var results = make(map[string]interface{})
-					configJsonKeyWithDataType, ok := config.configJsonEtcdKeyMap[string(ev.Kv.Key)]
-					if ok {
-						convertETCDValueToOriginalType(configJsonKeyWithDataType, string(ev.Kv.Key), ev.Kv, results)
-						// save values to config struct
-						config.syncEtcdDataToConfigStruct(results, configStructPtr)
+					if ev.Type == clientv3.EventTypePut{
+						var results = make(map[string]interface{})
+						configJsonKeyWithDataType, ok := config.configJsonEtcdKeyMap[string(ev.Kv.Key)]
+						if ok {
+							convertETCDValueToOriginalType(configJsonKeyWithDataType, ev.Kv, results)
+							// save values to config struct
+							config.syncEtcdDataToConfigStruct(results, configStructPtr)
+						}
+						// call reload callback functions
+						config.runReloadCallbackFuncs(ctx, string(ev.Kv.Key))
 					}
-					// call reload callback functions
-					config.runReloadCallbackFuncs(ctx, string(ev.Kv.Key))
 				}
 			}
 		}
@@ -271,7 +273,7 @@ func (config *liveConfig) Watch(configStructPtr interface{}) {
 
 //convertETCDValueToOriginalType get the predefiend type of etcd key and convert the etcd value([]byte) to its original type
 // It doesn't support ptr type and custom type struct field.
-func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, etcdKey string, kv *mvccpb.KeyValue, results map[string]interface{}) error {
+func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, kv *mvccpb.KeyValue, results map[string]interface{}) error {
 	switch jsonKeyType.Type.Kind() {
 	// String
 	case reflect.String:
