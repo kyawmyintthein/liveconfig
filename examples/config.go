@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/kyawmyintthein/liveconfig"
+	"time"
 )
 
 type LogInfo struct{
@@ -26,7 +27,7 @@ func main(){
 	lConfig, err := liveconfig.NewConfig(
 		generalConfig,
 		"/test-project/config",
-		liveconfig.WithFilepaths([]string{"src/github.com/kyawmyintthein/liveconfig/examples/config.yml"}),
+		liveconfig.WithFilepaths([]string{"/Users/kyawmyintthein/go/src/github.com/kyawmyintthein/liveconfig/examples/config.yml"}),
 		liveconfig.WithConfigType("yaml"),
 		liveconfig.WithHosts("localhost:2379"),
 		liveconfig.WithRequesttimeout(20),
@@ -36,22 +37,20 @@ func main(){
 		return
 	}
 
-	ok := lConfig.AddReloadCallback("log/log_level", func(ctx context.Context){
-		fmt.Println("Test",generalConfig.Log.LogLevel)
+	lConfig.AddReloadCallback("log/log_level", func(ctx context.Context){
+		fmt.Println("log/log_level changed to : ", generalConfig.Log.LogLevel)
 	})
 
-	err = lConfig.OverrideConfigValues(generalConfig)
+	err = lConfig.Start()
 	if err != nil{
-		fmt.Printf("OverrideConfigValues Error : %v \n", err)
+		fmt.Printf("Start Error : %v \n", err)
 		return
 	}
 
-	fmt.Printf("Config %+v \n", generalConfig)
-	lConfig.Watch(generalConfig)
-
-	fmt.Println(ok)
-
-	select{}
+	for {
+		time.Sleep(5 * time.Second)
+		fmt.Printf("Config %+v \n", generalConfig)
+	}
 }
 
 

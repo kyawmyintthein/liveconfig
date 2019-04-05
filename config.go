@@ -5,15 +5,15 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/kyawmyintthein/liveconfig/option"
+	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
+	"github.com/kyawmyintthein/liveconfig/option"
 	"github.com/spf13/viper"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-	"github.com/coreos/etcd/clientv3"
 )
 
 const DefaultConfigType = "yaml"
@@ -22,8 +22,9 @@ const DefaultConfigType = "yaml"
 // Then, retrieve values from etcd server and override into config struct's value.
 // It can also watch the changes of etcd keys by prefix and save into config struct.
 type LiveConfig interface {
-	Watch(configStructPtr interface{})
-	OverrideConfigValues(configStructPtr interface{}) error
+	Start() error
+	Watch()
+	OverrideConfigValues() error
 	// AddReloadCallback register reinitilization function for specific etcd key
 	AddReloadCallback(etcdKey string, fn ReloadCallbackFunc) bool
 }
@@ -63,6 +64,8 @@ type liveConfig struct {
 
 	// root path for etcd directory
 	prefix string
+
+	configStructPtr interface{}
 }
 
 // NewConfig: create new liveConfig object
@@ -72,6 +75,7 @@ func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option
 	options := option.NewOptions(opts...)
 	liveConfig := &liveConfig{
 		prefix:        prefix,
+		configStructPtr: configStructPtr,
 		options:                options,
 		configJsonEtcdKeyMap:   make(map[string]ConfigJsonKeyWithDataType),
 		etcdKeyCallbackFuncMap: make(map[string]ReloadCallbackFunc),
@@ -79,7 +83,7 @@ func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option
 
 	err := liveConfig.loadViperConfig(configStructPtr)
 	if err != nil {
-		return liveConfig,err
+		return liveConfig, err
 	}
 
 	err = liveConfig.initEtcdConn()
@@ -100,7 +104,7 @@ func (config *liveConfig) loadViperConfig(configStructPtr interface{}) error{
 	// config filepath
 	filepaths, _ := config.options.Context.Value(filepathsKey{}).([]string)
 	if len(filepaths) == 0{
-		return fmt.Errorf("empty config file")
+		return nil
 	}
 	viper.SetConfigFile(filepaths[0])
 
@@ -237,9 +241,20 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 	return nil
 }
 
+// Wrapper function for OverrideConfigValues and Watch
+func (config *liveConfig) Start() error {
+	err := config.OverrideConfigValues()
+	if err != nil{
+		return err
+	}
+	config.Watch()
+	return nil
+}
+
+
 // OverrideConfigValues read etcd valeus and sync into config struct
 // call the reload callback function
-func (config *liveConfig) OverrideConfigValues(configStructPtr interface{}) error {
+func (config *liveConfig) OverrideConfigValues() error {
 	kv := config.etcdCli.KV
 
 	etcdRequestTimeout, _ := config.options.Context.Value(requestTimeoutKey{}).(time.Duration)
@@ -262,7 +277,7 @@ func (config *liveConfig) OverrideConfigValues(configStructPtr interface{}) erro
 	}
 
 	// save values to struct
-	err := config.syncEtcdDataToConfigStruct(results, configStructPtr)
+	err := config.syncEtcdDataToConfigStruct(results, config.configStructPtr)
 	if err != nil {
 		return err
 	}
@@ -303,7 +318,7 @@ func (config *liveConfig) AddReloadCallback(etcdKey string, fn ReloadCallbackFun
 
 // WatchfromEtcd watch etcd key and sync into config struct.
 // It wil also call reload callback function to reinitalize the module.
-func (config *liveConfig) Watch(configStructPtr interface{}) {
+func (config *liveConfig) Watch() {
 	ctx := context.Background()
 	go func() {
 		watchChan := config.etcdCli.Watch(ctx, config.prefix, clientv3.WithPrefix())
@@ -317,7 +332,7 @@ func (config *liveConfig) Watch(configStructPtr interface{}) {
 						if ok {
 							convertETCDValueToOriginalType(configJsonKeyWithDataType, ev.Kv, results)
 							// save values to config struct
-							config.syncEtcdDataToConfigStruct(results, configStructPtr)
+							config.syncEtcdDataToConfigStruct(results, config.configStructPtr)
 						}
 						// call reload callback functions
 						config.runReloadCallbackFuncs(ctx, string(ev.Kv.Key))
