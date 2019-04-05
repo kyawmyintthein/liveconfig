@@ -8,13 +8,13 @@ import (
 )
 
 type LogInfo struct{
-	LogRotation bool `etcd:"log_rotation" json:"log_rotation" mapstructure:"log_rotation"`
+	LogRotation bool `etcd:"log_rotation" json:"log_rota" mapstructure:"log_rotation"`
 }
 
 type LogConfig struct{
-	Info LogInfo 		`etcd:"info" json:"info" mapstructure:"info"`
-	LogLevel string     `etcd:"log_level" json:"log_level" mapstructure:"log_level"`
-	LogFilepath string  `etcd:"log_filepath" json:"log_filepath" mapstructure:"log_filepath"`
+	Info LogInfo 		`json:"info" mapstructure:"info"`
+	LogLevel string     `json:"log_level" mapstructure:"log_level"`
+	LogFilepath string  `json:"log_filepath" mapstructure:"log_filepath"`
 }
 
 type GeneralConfig struct{

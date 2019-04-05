@@ -201,8 +201,12 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 		}
 
 		structFieldJsonTag, structFieldEtcdTag := getStructTags(structField)
-		if structFieldJsonTag == "" || structFieldEtcdTag == "" {
+		if structFieldJsonTag == "" {
 			continue
+		}
+
+		if structFieldEtcdTag == ""{
+			structFieldEtcdTag = structFieldJsonTag
 		}
 
 		// nested struct
@@ -210,9 +214,9 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 			valueField := valueOfIStructPointerElem.Field(index)
 			jsonTag := structFieldJsonTag
 			if parentFieldJsonTag != ""{
-				jsonTag = fmt.Sprintf("%s.%s", parentFieldEtcdTag, structFieldJsonTag)
+				jsonTag = fmt.Sprintf("%s.%s", parentFieldJsonTag, structFieldJsonTag)
 			}
-			etcdTag := structFieldJsonTag
+			etcdTag := structFieldEtcdTag
 			if parentFieldEtcdTag != ""{
 				etcdTag = fmt.Sprintf("%s/%s", parentFieldEtcdTag, structFieldEtcdTag)
 			}
@@ -228,16 +232,16 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 				Type: structField.Type,
 			}
 
-			etcdTag := structFieldJsonTag
+			etcdTag := structFieldEtcdTag
 			if parentFieldEtcdTag != ""{
-				etcdTag = fmt.Sprintf("%s/%s", parentFieldEtcdTag, structFieldJsonTag)
+				etcdTag = fmt.Sprintf("%s/%s", parentFieldEtcdTag, structFieldEtcdTag)
 			}
 
 			etcdKey := fmt.Sprintf("%s/%s", config.prefix, etcdTag)
 			config.configJsonEtcdKeyMap[etcdKey] = jsonKeyType
 		}
-
 	}
+
 	return nil
 }
 
@@ -267,7 +271,6 @@ func (config *liveConfig) OverrideConfigValues() error {
 		if err != nil {
 			return err
 		}
-
 		if len(res.Kvs) > 0 {
 			err = convertETCDValueToOriginalType(jsonKeyType, res.Kvs[0], results)
 			if err != nil {
