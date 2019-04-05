@@ -37,7 +37,7 @@ func main(){
 	lConfig, err := liveconfig.NewConfig(
 		generalConfig,
 		"/test-project/config",
-		liveconfig.WithFilepaths([]string{"/Users/kyawmyintthein/go/src/github.com/kyawmyintthein/liveconfig/examples/config.yml"}),
+		liveconfig.WithFilepaths([]string{"config.yml"}),
 		liveconfig.WithConfigType("yaml"),
 		liveconfig.WithHosts("localhost:2379"),
 		liveconfig.WithRequesttimeout(20),
