@@ -1,4 +1,4 @@
-package liveconfig
+package clconfig
 
 import (
 	"reflect"

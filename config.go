@@ -1,4 +1,4 @@
-package liveconfig
+package clconfig
 
 import (
 	"context"
@@ -21,7 +21,7 @@ const DefaultConfigType = "yaml"
 // LiveConfig is read the config struct and generate etcd keys according to specification.
 // Then, retrieve values from etcd server and override into config struct's value.
 // It can also watch the changes of etcd keys by prefix and save into config struct.
-type LiveConfig interface {
+type CLConfig interface {
 	Start() error
 	Watch()
 	OverrideConfigValues() error
@@ -71,11 +71,11 @@ type liveConfig struct {
 // NewConfig: create new liveConfig object
 // init etcd connection according to options
 // generate etcd keys from config struct and keep in as map
-func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option) (LiveConfig, error) {
+func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option) (CLConfig, error) {
 	options := option.NewOptions(opts...)
 	liveConfig := &liveConfig{
-		prefix:        prefix,
-		configStructPtr: configStructPtr,
+		prefix:                 prefix,
+		configStructPtr:        configStructPtr,
 		options:                options,
 		configJsonEtcdKeyMap:   make(map[string]ConfigJsonKeyWithDataType),
 		etcdKeyCallbackFuncMap: make(map[string]ReloadCallbackFunc),
@@ -88,7 +88,7 @@ func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option
 
 	err = liveConfig.initEtcdConn()
 	if err != nil {
-		return liveConfig,err
+		return liveConfig, err
 	}
 
 	err = liveConfig.generateConfigETCDKeysFromConfig("", "", configStructPtr)
@@ -99,11 +99,11 @@ func NewConfig(configStructPtr interface{}, prefix string, opts ...option.Option
 	return liveConfig, nil
 }
 
-func (config *liveConfig) loadViperConfig(configStructPtr interface{}) error{
+func (config *liveConfig) loadViperConfig(configStructPtr interface{}) error {
 
 	// config filepath
 	filepaths, _ := config.options.Context.Value(filepathsKey{}).([]string)
-	if len(filepaths) == 0{
+	if len(filepaths) == 0 {
 		return nil
 	}
 	viper.SetConfigFile(filepaths[0])
@@ -115,16 +115,15 @@ func (config *liveConfig) loadViperConfig(configStructPtr interface{}) error{
 	}
 	viper.SetConfigType(configType)
 
-
 	err := viper.ReadInConfig()
 	if err != nil {
 		return fmt.Errorf("Fatal error config file: %s \n", err)
 	}
 
 	for _, filepath := range filepaths[1:] {
-		err = func(filepath string) error{
+		err = func(filepath string) error {
 			f, err := os.Open(filepath)
-			if err != nil{
+			if err != nil {
 				return fmt.Errorf("Fatal error read config file: %s \n", err)
 			}
 			defer f.Close()
@@ -134,7 +133,7 @@ func (config *liveConfig) loadViperConfig(configStructPtr interface{}) error{
 			}
 			return nil
 		}(filepath)
-		if err != nil{
+		if err != nil {
 			return err
 		}
 	}
@@ -205,25 +204,25 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 			continue
 		}
 
-		if structFieldEtcdTag == ""{
+		if structFieldEtcdTag == "" {
 			structFieldEtcdTag = structFieldJsonTag
 		}
 
 		// nested struct
-		if structField.Type.Kind() == reflect.Struct{
+		if structField.Type.Kind() == reflect.Struct {
 			valueField := valueOfIStructPointerElem.Field(index)
 			jsonTag := structFieldJsonTag
-			if parentFieldJsonTag != ""{
+			if parentFieldJsonTag != "" {
 				jsonTag = fmt.Sprintf("%s.%s", parentFieldJsonTag, structFieldJsonTag)
 			}
 			etcdTag := structFieldEtcdTag
-			if parentFieldEtcdTag != ""{
+			if parentFieldEtcdTag != "" {
 				etcdTag = fmt.Sprintf("%s/%s", parentFieldEtcdTag, structFieldEtcdTag)
 			}
 			config.generateConfigETCDKeysFromConfig(jsonTag, etcdTag, valueField.Addr().Interface())
-		}else{
+		} else {
 			jsonTag := structFieldJsonTag
-			if parentFieldJsonTag != ""{
+			if parentFieldJsonTag != "" {
 				jsonTag = fmt.Sprintf("%s.%s", parentFieldJsonTag, structFieldJsonTag)
 			}
 
@@ -233,7 +232,7 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 			}
 
 			etcdTag := structFieldEtcdTag
-			if parentFieldEtcdTag != ""{
+			if parentFieldEtcdTag != "" {
 				etcdTag = fmt.Sprintf("%s/%s", parentFieldEtcdTag, structFieldEtcdTag)
 			}
 
@@ -248,13 +247,12 @@ func (config *liveConfig) generateConfigETCDKeysFromConfig(parentFieldJsonTag, p
 // Wrapper function for OverrideConfigValues and Watch
 func (config *liveConfig) Start() error {
 	err := config.OverrideConfigValues()
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	config.Watch()
 	return nil
 }
-
 
 // OverrideConfigValues read etcd valeus and sync into config struct
 // call the reload callback function
@@ -329,7 +327,7 @@ func (config *liveConfig) Watch() {
 			select {
 			case result := <-watchChan:
 				for _, ev := range result.Events {
-					if ev.Type == clientv3.EventTypePut{
+					if ev.Type == clientv3.EventTypePut {
 						var results = make(map[string]interface{})
 						configJsonKeyWithDataType, ok := config.configJsonEtcdKeyMap[string(ev.Kv.Key)]
 						if ok {
@@ -352,8 +350,8 @@ func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, kv *m
 	switch jsonKeyType.Type.Kind() {
 	// String
 	case reflect.String:
-		rootKey, res, err := convertToMap(jsonKeyType.Key,  string(kv.Value), ".")
-		if err != nil{
+		rootKey, res, err := convertToMap(jsonKeyType.Key, string(kv.Value), ".")
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
@@ -364,8 +362,8 @@ func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, kv *m
 			return err
 		}
 
-		rootKey, res, err := convertToMap(jsonKeyType.Key,  float32Val, ".")
-		if err != nil{
+		rootKey, res, err := convertToMap(jsonKeyType.Key, float32Val, ".")
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
@@ -377,8 +375,8 @@ func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, kv *m
 			return err
 		}
 
-		rootKey, res, err := convertToMap(jsonKeyType.Key,  float64Val, ".")
-		if err != nil{
+		rootKey, res, err := convertToMap(jsonKeyType.Key, float64Val, ".")
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
@@ -388,8 +386,8 @@ func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, kv *m
 		if err != nil {
 			return err
 		}
-		rootKey, res, err := convertToMap(jsonKeyType.Key,  boolValue, ".")
-		if err != nil{
+		rootKey, res, err := convertToMap(jsonKeyType.Key, boolValue, ".")
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
@@ -400,28 +398,28 @@ func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, kv *m
 			return err
 		}
 
-		rootKey, res, err := convertToMap(jsonKeyType.Key,  val, ".")
-		if err != nil{
+		rootKey, res, err := convertToMap(jsonKeyType.Key, val, ".")
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
 
 	// Uint
 	case reflect.Uint16:
-		rootKey, res, err := convertToMap(jsonKeyType.Key,  binary.BigEndian.Uint16(kv.Value), ".")
-		if err != nil{
+		rootKey, res, err := convertToMap(jsonKeyType.Key, binary.BigEndian.Uint16(kv.Value), ".")
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
 	case reflect.Uint32:
-		rootKey, res, err := convertToMap(jsonKeyType.Key,  binary.BigEndian.Uint32(kv.Value), ".")
-		if err != nil{
+		rootKey, res, err := convertToMap(jsonKeyType.Key, binary.BigEndian.Uint32(kv.Value), ".")
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
 	case reflect.Uint64:
-		rootKey, res, err := convertToMap(jsonKeyType.Key,  binary.BigEndian.Uint64(kv.Value), ".")
-		if err != nil{
+		rootKey, res, err := convertToMap(jsonKeyType.Key, binary.BigEndian.Uint64(kv.Value), ".")
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
@@ -435,7 +433,7 @@ func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, kv *m
 		}
 
 		rootKey, res, err := convertToMap(jsonKeyType.Key, mapReflectValue, ".")
-		if err != nil{
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
@@ -448,7 +446,7 @@ func convertETCDValueToOriginalType(jsonKeyType ConfigJsonKeyWithDataType, kv *m
 			return err
 		}
 		rootKey, res, err := convertToMap(jsonKeyType.Key, sliceReflectValue, ".")
-		if err != nil{
+		if err != nil {
 			return err
 		}
 		results[rootKey] = res[rootKey]
@@ -464,7 +462,6 @@ func (config *liveConfig) runReloadCallbackFuncs(ctx context.Context, etcdKey st
 		callbackFn(ctx)
 	}
 }
-
 
 func convertToMap(keyString string, value interface{}, delimiter string) (string, map[string]interface{}, error) {
 	rootKey := strings.Split(keyString, ".")[0]

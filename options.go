@@ -1,10 +1,9 @@
-package liveconfig
+package clconfig
 
 import (
 	"context"
 	"github.com/kyawmyintthein/liveconfig/option"
 	"time"
-
 )
 
 type hostsKey struct{}
@@ -65,7 +64,6 @@ func WithRequesttimeout(requestTimeout time.Duration) option.Option {
 	}
 }
 
-
 // WithFilepaths sets the filepaths for viper option
 func WithFilepaths(filepaths []string) option.Option {
 	return func(o *option.Options) {
@@ -75,7 +73,6 @@ func WithFilepaths(filepaths []string) option.Option {
 		o.Context = context.WithValue(o.Context, filepathsKey{}, filepaths)
 	}
 }
-
 
 // WithConfigType sets the config type option
 func WithConfigType(configType string) option.Option {
